@@ -8,7 +8,8 @@ import torch
 from matplotlib import animation
 from torch.utils.data import Dataset
 from torchvision import datasets, transforms
-
+from phenobench_anomaly.datasets.phenobench_anomaly_dataset import PhenoBenchAnomalyDataset
+import albumentations as A
 
 # helper function to make getting another batch of data easier
 
@@ -368,6 +369,16 @@ def init_dataset_loader(mri_dataset, args, shuffle=True):
             )
 
     return dataset_loader
+
+class PhenoBenchAnomalyDataset_AnoDDPM(PhenoBenchAnomalyDataset):
+    def __getitem__(self, idx):
+        sample = super().__getitem__(idx)
+        # generate anomaly mask
+        ano_mask = np.zeros_like(sample["semantics"])
+        ano_mask[sample["semantics"] == 2] = 255
+        sample["mask"] = np.expand_dims(ano_mask, 0)
+        return sample
+
 
 
 class DAGM(Dataset):
@@ -814,9 +825,17 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import helpers
 
-    d_set = MVTec(
-            './DATASETS/leather', True, img_size=(256, 256), rgb=False
-            )
+    # d_set = MVTec(
+    #         './DATASETS/leather', True, img_size=(256, 256), rgb=False
+    #         )
+    DS_MEAN = np.array([123.675, 116.280, 103.530]) / 255
+    DS_STD = np.array([58.395, 57.120, 57.375]) / 255
+    image_transform = A.Compose([
+        A.Resize(width=341, height=341),
+        A.Normalize(),
+    ])
+
+    d_set = PhenoBenchAnomalyDataset_AnoDDPM("/home/ronja/data/PhenoBench-v100/PhenoBench", "val", 0.0, transform=image_transform)
     # d_set = AnomalousMRIDataset(
     #         ROOT_DIR='./DATASETS/CancerousDataset/EdinburghDataset/Anomalous-T1', img_size=(256, 256),
     #         slice_selection="iterateKnown_restricted", resized=False
