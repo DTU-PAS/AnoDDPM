@@ -14,6 +14,8 @@ import evaluation
 from GaussianDiffusion import GaussianDiffusionModel, get_beta_schedule
 from helpers import *
 from UNet import UNetModel, update_ema_params
+import albumentations as A
+from tqdm import tqdm
 
 torch.cuda.empty_cache()
 
@@ -84,7 +86,7 @@ def train(training_dataset_loader, testing_dataset_loader, args, resume):
     # iters = range(100 // args['Batch_Size']) if args["dataset"].lower() != "cifar" else range(150)
 
     # dataset loop
-    for epoch in tqdm_epoch:
+    for epoch in tqdm(tqdm_epoch):
         mean_loss = []
 
         for i in iters:
@@ -107,7 +109,7 @@ def train(training_dataset_loader, testing_dataset_loader, args, resume):
             update_ema_params(ema, model)
             mean_loss.append(loss.data.cpu())
 
-            if epoch % 50 == 0 and i == 0:
+            if epoch % 50 == 0 and i == 0 and epoch > 0:
                 row_size = min(8, args['Batch_Size'])
                 training_outputs(
                         diffusion, x, est, noisy, epoch, row_size, save_imgs=args['save_imgs'],
@@ -331,6 +333,17 @@ def main():
                 False
                 )
         testing_dataset_loader = dataset.init_dataset_loader(testing_dataset, args)
+    elif args["dataset"].lower() == "pba":
+        image_transform = A.Compose([
+            A.Resize(width=int(args["img_size"][0]), height=int(args["img_size"][1])),
+            A.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ])
+
+        training_dataset = dataset.PhenoBenchAnomalyDataset_AnoDDPM("/home/ronja/data/PhenoBench-v100/PhenoBench", "train", 0.0, transform=image_transform)
+        testing_dataset = dataset.PhenoBenchAnomalyDataset_AnoDDPM("/home/ronja/data/PhenoBench-v100/PhenoBench", "val", 0.0, transform=image_transform)
+        training_dataset_loader = dataset.init_dataset_loader(training_dataset, args)
+        testing_dataset_loader = dataset.init_dataset_loader(testing_dataset, args)
+
     elif args["dataset"].lower() == "leather":
         if in_channels == 3:
             training_dataset = dataset.MVTec(

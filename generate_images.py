@@ -6,6 +6,7 @@ import random
 
 from matplotlib import animation
 from torchvision import transforms
+import albumentations as A
 
 import dataset
 from helpers import gridify_output, load_parameters
@@ -192,7 +193,7 @@ def make_videos():
     # load parameters
     args, output = load_parameters(device)
     in_channels = 1
-    if args["dataset"].lower() == "leather":
+    if args["dataset"].lower() in ["leather", "pba"]:
         in_channels = 3
 
     # init model, betas and diffusion classes
@@ -219,6 +220,14 @@ def make_videos():
                 "./DATASETS/leather", anomalous=True, img_size=args["img_size"],
                 rgb=True, include_good=False
                 )
+    elif args["dataset"].lower() == "pba":
+        image_transform = A.Compose([
+            A.Resize(width=int(args["img_size"][0]), height=int(args["img_size"][1])),
+            A.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ])
+
+        d_set = dataset.PhenoBenchAnomalyDataset_AnoDDPM("/home/ronja/data/PhenoBench-v100/PhenoBench", "train", 0.0, transform=image_transform)
+        testing_dataset = dataset.PhenoBenchAnomalyDataset_AnoDDPM("/home/ronja/data/PhenoBench-v100/PhenoBench", "val", 0.0, transform=image_transform)
     else:
         d_set = dataset.AnomalousMRIDataset(
                 ROOT_DIR=f'{DATASET_PATH}', img_size=args['img_size'],
@@ -247,7 +256,7 @@ def make_videos():
         img = new["image"].to(device)
 
         # if mri - select random slice
-        if args["dataset"] != "carpet" and args["dataset"] != "leather":
+        if args["dataset"] != "carpet" and args["dataset"] != "leather" and args["dataset"] != "pba":
 
             slice = np.random.choice([0, 1, 2, 3], p=[0.2, 0.3, 0.3, 0.2])
             img = img.reshape(img.shape[1], 1, *args["img_size"])
@@ -260,6 +269,8 @@ def make_videos():
                 # t_distance=5, denoise_fn=args["noise_fn"]
                 t_distance=t_distance, denoise_fn=args["noise_fn"]
                 )
+        # output = diff.forward_backward(unet, img, "half", args['sample_distance'] // 2, denoise_fn=args["noise_fn"])
+
         # plot, animate and save diffusion process
         fig, ax = plt.subplots()
         plt.axis('off')
@@ -272,8 +283,8 @@ def make_videos():
                 f'./final-outputs/ARGS={args["arg_num"]}'
                 )
 
-        output_name = f'./final-outputs/ARGS={args["arg_num"]}/attempt={len(temp) + 1}-sequence.mp4'
-        ani.save(output_name)
+        output_name = f'./final-outputs/ARGS={args["arg_num"]}/attempt={len(temp) + 1}-sequence.gif'
+        ani.save(output_name, writer='imagemagick')
 
 
 def make_ano_outputs():
@@ -1072,17 +1083,17 @@ if __name__ == '__main__':
     os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
     # add times new roman to mpl fonts
-    font_path = "./times new roman.ttf"
-    font_manager.fontManager.addfont(font_path)
-    prop = font_manager.FontProperties(fname=font_path)
+    # font_path = "./times new roman.ttf"
+    # font_manager.fontManager.addfont(font_path)
+    # prop = font_manager.FontProperties(fname=font_path)
 
-    plt.rcParams['font.family'] = 'sans-serif'
-    plt.rcParams['font.sans-serif'] = prop.get_name()
+    # plt.rcParams['font.family'] = 'sans-serif'
+    # plt.rcParams['font.sans-serif'] = prop.get_name()
 
-    if str(sys.argv[2]):
-        DATASET_PATH = str(sys.argv[2])
-    else:
-        DATASET_PATH = './DATASETS/CancerousDataset/EdinburghDataset/Anomalous-T1'
+    # if str(sys.argv[2]):
+    #     DATASET_PATH = str(sys.argv[2])
+    # else:
+    #     DATASET_PATH = './DATASETS/CancerousDataset/EdinburghDataset/Anomalous-T1'
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     plt.set_cmap('gray')
@@ -1091,14 +1102,16 @@ if __name__ == '__main__':
     scale_img = lambda img: ((img + 1) * 127.5).clamp(0, 255).to(torch.uint8)
 
     # run different outputs based on model and dataset
-    if str(sys.argv[1]) == "101" or str(sys.argv[1]) == "102" or str(sys.argv[1]) == "103" or str(sys.argv[1]) == \
-            "104":
-        make_gan_outputs()
-    elif str(sys.argv[1]) == "23":
+    # if str(sys.argv[1]) == "101" or str(sys.argv[1]) == "102" or str(sys.argv[1]) == "103" or str(sys.argv[1]) == \
+    #         "104":
+    #     make_gan_outputs()
+    if str(sys.argv[1]) == "23":
         make_varying_frequency_outputs()
     elif str(sys.argv[1]) == "26":
         make_videos()
     elif str(sys.argv[1]) == "28":
+        make_videos()
+    elif str(sys.argv[1]) == "100":
         make_videos()
     elif str(sys.argv[1]) == "30":
         make_videos()
